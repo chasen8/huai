@@ -1,0 +1,4 @@
+[
+  { "symbol": "BTC/USDT", "direction": "LONG" },
+  { "symbol": "ETH/USDT", "direction": "SHORT" }
+]
