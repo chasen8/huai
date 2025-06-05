@@ -1,0 +1,34 @@
+name: Auto Update Recommend List
+
+on:
+  schedule:
+    - cron: '0 17 * * *'  # 台灣凌晨1點(UTC+8)，如要其他時間請換
+  workflow_dispatch:
+
+jobs:
+  update_recommend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install ccxt pandas ta
+
+      - name: Run recommend.py
+        run: python recommend.py
+
+      - name: Commit and push if changed
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git add public/recommend.json
+          git commit -m "auto: update recommend.json [skip ci]" || echo "No changes to commit"
+          git push
