@@ -1,44 +1,31 @@
-import Link from 'next/link';
-import { useState } from 'react';
+import sys, ccxt, pandas as pd, ta, json
 
-export default function Analyze() {
-  const [symbol, setSymbol] = useState('');
-  const [report, setReport] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+symbol = sys.argv[1] if len(sys.argv) > 1 else 'BTC/USDT'
+exchange = ccxt.binance()
+ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1h', limit=100)
+df = pd.DataFrame(ohlcv, columns=['ts','open','high','low','close','volume'])
+close = df['close']
+macd = ta.trend.macd(close)
+macdsignal = ta.trend.macd_signal(close)
+rsi = ta.momentum.rsi(close)
 
-  const handleAnalyze = async () => {
-    setLoading(true); setReport(null);
-    const res = await fetch(`/api/analyze?symbol=${symbol}`);
-    const data = await res.json();
-    setReport(data); setLoading(false);
-  };
+vol_profile = df.groupby('close')['volume'].sum().sort_values(ascending=False)
+support_zone = float(vol_profile.head(3).index.min())
+resist_zone = float(vol_profile.head(3).index.max())
+entry_price = float(df['close'].iloc[-1])
+atr = ta.volatility.average_true_range(df['high'], df['low'], df['close'])
+tp = round(entry_price + 1.5*atr.iloc[-1], 2)
+sl = round(entry_price - 1.5*atr.iloc[-1], 2)
+pattern = "MACD多頭" if macd.iloc[-1] > macdsignal.iloc[-1] else "MACD空頭"
+advice = "可偏多進場" if macd.iloc[-1] > macdsignal.iloc[-1] and rsi.iloc[-1] > 50 else "觀望/偏空"
 
-  return (
-    <main style={{ background: '#21222a', color: '#fff', minHeight: '100vh', padding: 40 }}>
-      <nav style={{ display: 'flex', gap: 40, fontSize: 18, marginBottom: 30 }}>
-        <Link href="/analyze" style={{ color: '#fff' }}>即時幣種分析</Link>
-        <Link href="/" style={{ color: '#fff' }}>幣種推薦</Link>
-      </nav>
-      <h2 style={{ color: '#33ccff', fontWeight: 700 }}>🔍 即時幣種分析</h2>
-      <input value={symbol} onChange={e => setSymbol(e.target.value.toUpperCase())}
-        style={{ color: '#222', padding: 8, borderRadius: 4, marginRight: 12 }}
-        placeholder="請輸入幣種 (如 BTC/USDT)" />
-      <button onClick={handleAnalyze} disabled={loading || !symbol}
-        style={{ background: '#33ccff', color: '#222', padding: '8px 16px', borderRadius: 4 }}>
-        {loading ? "分析中..." : "分析"}
-      </button>
-      {report && (
-        <div style={{ background: '#2a2b36', padding: 24, borderRadius: 8, marginTop: 32 }}>
-          <div>幣種：<b>{report.symbol}</b></div>
-          <div>型態分析：{report.pattern}</div>
-          <div>支撐區：{report.support_zone}</div>
-          <div>壓力區：{report.resist_zone}</div>
-          <div>建議進場價：{report.entry_price}</div>
-          <div>TP：{report.tp}</div>
-          <div>SL：{report.sl}</div>
-          <div>分析建議：<b>{report.advice}</b></div>
-        </div>
-      )}
-    </main>
-  );
-}
+print(json.dumps({
+    "symbol": symbol,
+    "pattern": pattern,
+    "support_zone": support_zone,
+    "resist_zone": resist_zone,
+    "entry_price": entry_price,
+    "tp": tp,
+    "sl": sl,
+    "advice": advice
+}, ensure_ascii=False))
